@@ -1,40 +1,29 @@
 import { Driver, SQLException, Connection } from "db-conn";
-import { MssqlConnection, MssqlConnectionConfig } from ".";
-import { MssqlSqlError } from "./MssqlSqlError";
+import { MssqlConnection } from ".";
+import { MssqlException } from "./MssqlException";
 import * as tds from "tedious";
-
-var config = {
-  authentication: {
-	type:"default",
-	options: {
-		userName:"sa",
-		password:"12345678"		
-	}
-  },
-  options: {
-	trustServerCertificate: true,
-  },
-  server: "10.58.81.109"
-};
 
 export class MssqlDriver implements Driver {
 	public async connect(config: tds.ConnectionConfig): Promise<Connection> {
-		const client = new tds.Connection(config);
-		
 		return new Promise((resolve, reject) => {
-			client.on('connect', function(err) {
-				console.debug(err);
-			  }
-			);			
-			client.connect(function (err: any) {
-				if (err) {
-					reject(new MssqlSqlError("hdb connect failed", err));
-					return;
+			try {
+				if (!config.options) {
+					config.options = {};
 				}
-				const conn: Connection = new MssqlConnection(client)
-				resolve(conn);
-			});
+				config.options!.useColumnNames = true;
+				const client = new tds.Connection(config);
+				(client as any).connect();
+				client.on("connect", function (err) {
+					if (err) {
+						reject(new MssqlException("", err));
+						return;
+					}
+					const conn: Connection = new MssqlConnection(client);
+					resolve(conn);
+				});
+			}catch(err) {
+				reject(new MssqlException("", err));
+			}
 		});
 	}
-
 }

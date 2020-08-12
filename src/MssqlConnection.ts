@@ -1,81 +1,94 @@
-import { Connection, SqlError, Result } from "db-conn";
-import { MssqlConnectionConfig } from "./MssqlConnectionConfig";
-import { MssqlSqlError } from "./MssqlSqlError";
-const hdb  = require("hdb");
-
+import { Connection, Result } from "db-conn";
+import { MssqlException } from "./MssqlException";
 import * as tds from "tedious";
 
 export class MssqlConnection implements Connection {
-	private client: any;
+	private client: tds.Connection;
 	public constructor(client: any) {
 		this.client = client;
 	}
 	public async close(): Promise<void> {
-		this.client.end();
+		this.client.close()
 		delete this.client;
 	}
 	public async execute(sql: string, params?: object | any[] | undefined): Promise<Result> {
 		if (params === undefined) {
 			params = [];
 		}
+		let rt: Result = {data:[],affectedRows:0};
 		return new Promise((resolve, reject) => {
-			this.client.prepare(sql, function (err: any, statement: any){
-				if (err) {
-					reject(new MssqlSqlError("statement prepare error", err));
+			const request = new tds.Request(sql, function(err, rowCount) {
+				if(err) {
+					reject(new MssqlException(err.message, err));
 					return;
 				}
-				statement.exec(params, function (err: any, rows: any) {
-					if (err) {
-						reject(new MssqlSqlError("statement exec error", err));
-						return;
-					}
-					const rt : Result = {};
-					if(isNaN(rows) == false) {
-						rt.affectedRows = rows;
-					}
-					if(Array.isArray(rows)) {
-						rt.data = rows;
-					}
-					statement.drop(function(err: any){
-						/* istanbul ignore next */
-						if (err) {
-							reject(new MssqlSqlError("statement drop error", err));
-							return;
-						}
-						resolve(rt);
-					});					
-				});
+				rt.affectedRows = rowCount;
 			});
+			request.on('error', function (err) { 
+				reject(new MssqlException(err.message, err));
+			});
+			request.on('row', function (columns) { 
+				const object: any = {};
+				for(const key in columns) {
+					object[key] = columns[key].value;
+				}
+				rt.data!.push(object);
+			});
+			request.on("requestCompleted", function () { 
+				resolve(rt);
+			});
+
+			if(Array.isArray(params)) {
+
+			} else {
+				this.addParameterObject(request, params as object);
+			}
+			this.client.execSql(request);
 		});
+	}
+	private addParameterObject(request: tds.Request, params: object) {
+		for(const name in params) {
+			const value = (params as any)[name];
+			const type = isNaN(value)?tds.TYPES.NVarChar:tds.TYPES.Int;
+			request.addParameter(name, type ,value);
+		}		
 	}
 	public async executeQuery(sql: string, params?: object | any[] | undefined): Promise<object[]> {
 		const rt: Result = await this.execute(sql, params);
-		if(rt.data === undefined) {
-			throw new MssqlSqlError("No data returned");
-		}
-		return rt.data;
+		return rt.data!;
 	}
 	public async setAutoCommit(autoCommit: boolean): Promise<void> {
-		this.client.setAutoCommit(autoCommit);
+		return new Promise((resolve, reject) => {
+			if(autoCommit) {
+				resolve();
+			} else {
+				this.client.beginTransaction(err => {
+					if(err) {
+						reject(new MssqlException(err.message, err));
+						return;
+					}
+					resolve();
+				});
+			}			
+		});
 	}
 	public async commit(): Promise<void> {
-		const that = this;
 		return new Promise((resolve, reject) => {
-			that.client.commit(function(err: any){
+			this.client.commitTransaction(function(err) {
 				if(err) {
-					reject(new MssqlSqlError("commit failed", err));
+					reject(new MssqlException(err.message, err));
 					return;
 				}
 				resolve();
 			});
 		});
 	}
+
 	public async rollback(): Promise<void> {
-		const that = this;
 		return new Promise((resolve, reject) => {
-			that.client.rollback(function(err: any){
+			this.client.rollbackTransaction(function(err) {
 				if(err) {
-					reject(new MssqlSqlError("rollback failed", err));
+					reject(new MssqlException(err.message, err));
 					return;
 				}
 				resolve();
