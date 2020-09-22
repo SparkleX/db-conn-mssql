@@ -1,5 +1,4 @@
 import { Connection, Result } from "db-conn";
-import { MssqlException } from "./MssqlException";
 import * as tds from "tedious";
 
 export class MssqlConnection implements Connection {
@@ -19,13 +18,13 @@ export class MssqlConnection implements Connection {
 		return new Promise((resolve, reject) => {
 			const request = new tds.Request(sql, function(err, rowCount) {
 				if(err) {
-					reject(new MssqlException(err.message, err));
+					reject(err);
 					return;
 				}
 				rt.affectedRows = rowCount;
 			});
 			request.on('error', function (err) { 
-				reject(new MssqlException(err.message, err));
+				reject(err);
 			});
 			request.on('row', function (columns) { 
 				const object: any = {};
@@ -64,7 +63,7 @@ export class MssqlConnection implements Connection {
 			} else {
 				this.client.beginTransaction(err => {
 					if(err) {
-						reject(new MssqlException(err.message, err));
+						reject(err);
 						return;
 					}
 					resolve();
@@ -76,7 +75,7 @@ export class MssqlConnection implements Connection {
 		return new Promise((resolve, reject) => {
 			this.client.commitTransaction(function(err) {
 				if(err) {
-					reject(new MssqlException(err.message, err));
+					reject(err);
 					return;
 				}
 				resolve();
@@ -88,7 +87,7 @@ export class MssqlConnection implements Connection {
 		return new Promise((resolve, reject) => {
 			this.client.rollbackTransaction(function(err) {
 				if(err) {
-					reject(new MssqlException(err.message, err));
+					reject(err);
 					return;
 				}
 				resolve();

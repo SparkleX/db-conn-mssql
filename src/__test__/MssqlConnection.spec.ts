@@ -1,5 +1,5 @@
 import { MssqlConnection } from "../MssqlConnection";
-import { Connection, SQLException } from "db-conn";
+import { Connection } from "db-conn";
 import { MssqlDriver } from "../MssqlDriver";
 import * as tds from "tedious";
 
@@ -24,7 +24,6 @@ async function initDatabase(conn: Connection):Promise<void> {
 	try {
 		rt = await conn.execute("drop database test");
 	}catch(e) {
-		console.error(e);
 	}
 	rt = await conn.execute("create database test");
 	rt = await conn.execute("use test");
@@ -46,8 +45,9 @@ test("Connect", async () => {
 test("Failed connect 1", async () => {
 	try {
 		const conn: Connection = await driver.connect({});
+		fail();
 	}catch(e) {
-		expect(e instanceof SQLException).toBe(true);
+		//expect(e.message).toBe(true);
 	}
 });
 test("Failed connect 2", async () => {
@@ -65,8 +65,9 @@ test("Failed connect 2", async () => {
 			},
 			server: "localhost",
 		  });
+		  fail();
 	}catch(e) {
-		expect(e instanceof SQLException).toBe(true);
+		//expect(e).toBe(true);
 	}
 });
 
@@ -75,8 +76,9 @@ test("Faied execute", async () => {
 	const conn: Connection = await driver.connect(config);
 	try {
 		let rt = await conn.execute("hello");
+		fail();
 	}catch(e) {
-		expect(e instanceof SQLException).toBe(true);
+		//expect(e).toBe(true);
 	}
 	await conn.close();
 });
@@ -91,8 +93,9 @@ test("commit failed", async () => {
 	(conn as any).client.close();
 	try {
 		await conn.commit();
+		fail();
 	}catch(e) {
-		expect(e instanceof SQLException).toBe(true);
+		//expect(e).toBe(true);
 	}
 });
 test("rollback", async () => {
@@ -111,8 +114,9 @@ test("rollback failed", async () => {
 	(conn as any).client.close();
 	try {
 		await conn.rollback();
+		fail();
 	}catch(e) {
-		expect(e instanceof SQLException).toBe(true);
+		//expect(e).toBe(true);
 	}
 });
 

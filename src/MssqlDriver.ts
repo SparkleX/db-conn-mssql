@@ -1,6 +1,5 @@
-import { Driver, SQLException, Connection } from "db-conn";
+import { Driver, Connection } from "db-conn";
 import { MssqlConnection } from ".";
-import { MssqlException } from "./MssqlException";
 import * as tds from "tedious";
 
 export class MssqlDriver implements Driver {
@@ -15,14 +14,20 @@ export class MssqlDriver implements Driver {
 				(client as any).connect();
 				client.on("connect", function (err) {
 					if (err) {
-						reject(new MssqlException("", err));
+						reject(err);
 						return;
 					}
 					const conn: Connection = new MssqlConnection(client);
 					resolve(conn);
 				});
+				client.on("error", function (err) {
+					if (err) {
+						reject(err);
+						return;
+					}
+				});
 			}catch(err) {
-				reject(new MssqlException("", err));
+				reject(err);
 			}
 		});
 	}
